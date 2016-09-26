@@ -46,9 +46,6 @@ define('MYMM_CSS_PATH', MYMM_PATH . 'assets/css/') ;
 
 load_plugin_textdomain('my-maintenance-mode',false, dirname( plugin_basename( __FILE__ ) ) . '/languages/');
 
-require_once('framework/framework.php');
-require_once('inc/config.php');
-
 /**
  * Upon activation of the plugin, see if we are running the required version and deploy theme in defined.
  *
