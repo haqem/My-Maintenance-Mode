@@ -1,6 +1,5 @@
 <?php
-
-/**h
+/**
  * My Maintenance Mode
  *
  * Plugin Name: My Maintenance Mode
@@ -21,47 +20,95 @@
 if (!defined('ABSPATH'))
     exit;
 
-/**
- * DEFINE PATHS
- */
-define('MYMM_PATH', plugin_dir_path(__FILE__));
-define('MYMM_CLASSES_PATH', MYMM_PATH . 'includes/classes/');
-define('MYMM_FUNCTIONS_PATH', MYMM_PATH . 'includes/functions/');
-define('MYMM_LANGUAGES_PATH', basename(MYMM_PATH) . '/languages/');
-define('MYMM_VIEWS_PATH', MYMM_PATH . 'views/');
-define('MYMM_CSS_PATH', MYMM_PATH . 'assets/css/') ;
 
+class maintenance {
+		function __construct() {
+			global	$maintenance_variable;
+			$maintenance_variable = new stdClass;
 
-/**
- * Init
- *
- * @package WordPress
- * @subpackage My_Maintenance_Mode
- * @since 0.1
- */
+			add_action( 'plugins_loaded', array( &$this, 'constants'), 	1);
+			add_action( 'plugins_loaded', array( &$this, 'lang'),		2);
+			add_action( 'plugins_loaded', array( &$this, 'includes'), 	3);
+			add_action( 'plugins_loaded', array( &$this, 'admin'),	 	4);
 
-/**
- * Require config to get our initial values
- */
-
-load_plugin_textdomain('my-maintenance-mode',false, dirname( plugin_basename( __FILE__ ) ) . '/languages/');
-
-/**
- * Upon activation of the plugin, see if we are running the required version and deploy theme in defined.
- *
- * @since 0.1
- */
-function seedprod_ucsp_activation() {
-    if ( version_compare( get_bloginfo( 'version' ), '3.0', '<' ) ) {
-        deactivate_plugins( __FILE__  );
-        wp_die( __('WordPress 3.0 and higher required. The plugin has now disabled itself. On a side note why are you running an old version :( Upgrade!','my-maintenance-mode') );
-    }
+			
+			register_activation_hook  ( __FILE__, array( &$this,  'mt_activation' ));
+			register_deactivation_hook( __FILE__, array( &$this, 'mt_deactivation') );
+			
+			add_action('wp', 		array( &$this, 'mt_template_redirect'), 1);
+			add_action('wp_logout',	array( &$this, 'mt_user_logout'));
+			add_action('init', 		array( &$this, 'mt_admin_bar'));
+			add_action('init', 		array( &$this, 'mt_set_global_options'), 1);
+		}
+		
+		function constants() {
+			define( 'MAINTENANCE_VERSION', '2.0.0' );
+			define( 'MAINTENANCE_DB_VERSION', 1 );
+			define( 'MAINTENANCE_WP_VERSION', get_bloginfo( 'version' ));
+			define( 'MAINTENANCE_DIR', trailingslashit( plugin_dir_path( __FILE__ ) ) );
+			define( 'MAINTENANCE_URI', trailingslashit( plugin_dir_url( __FILE__ ) ) );
+			define( 'MAINTENANCE_INCLUDES', MAINTENANCE_DIR . trailingslashit( 'includes' ) );
+			define( 'MAINTENANCE_LOAD',     MAINTENANCE_DIR . trailingslashit( 'load' ) );
+		}
+		
+		function mt_set_global_options() {
+			global $mt_options;
+			$mt_options =  mt_get_plugin_options(true);		
+		}
+		
+		function lang() {
+			load_plugin_textdomain( 'maintenance', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );		
+		}	
+		
+		function includes() {
+			require_once( MAINTENANCE_INCLUDES . 'functions.php' ); 
+			require_once( MAINTENANCE_INCLUDES . 'update.php' ); 
+			require_once( MAINTENANCE_DIR 	   . 'load/functions.php' ); 
+		}
+		
+		function admin() {
+			if ( is_admin() ) {
+				require_once( MAINTENANCE_INCLUDES . 'admin.php' );
+			}	
+		}
+		
+		function mt_activation() {
+			/*Activation Plugin*/
+			self::mt_clear_cache();
+		}
+		
+		function mt_deactivation() {
+			/*Deactivation Plugin*/
+			self::mt_clear_cache();
+		}
+		
+		public static function mt_clear_cache() {
+			global $file_prefix;
+			if ( function_exists( 'w3tc_pgcache_flush' ) ) w3tc_pgcache_flush(); 
+			if ( function_exists( 'wp_cache_clean_cache' ) ) wp_cache_clean_cache( $file_prefix, true );
+		}	
+		
+		function mt_user_logout() { 
+			wp_safe_redirect(get_bloginfo('url'));
+			exit; 
+		}
+		
+		function mt_template_redirect() {
+			load_maintenance_page();
+		}
+		
+		function mt_admin_bar() {
+			add_action('admin_bar_menu', 'maintenance_add_toolbar_items', 100);
+			if (!is_super_admin() ) {
+				$mt_options = mt_get_plugin_options(true);
+				if (isset($mt_options['admin_bar_enabled']) && is_user_logged_in()) { 
+					add_filter('show_admin_bar', '__return_true');  																	 
+				} else {
+					add_filter('show_admin_bar', '__return_false');  																	 
+				}
+			}	
+		}
 }
 
-add_action( 'after_plugin_row_' .  plugin_basename( __FILE__ ), 'seedprod_ucsp_deprication_msg', 10, 2 );
-
-function seedprod_ucsp_deprication_msg($file, $plugin){
-	echo '<tr class="plugin-update-tr"><td colspan="3" class="plugin-update">';
-	echo '<div style=" color: #a94442; background:#f2dede; padding:10px; border: 1px #ebccd1 solid;"><strong>Important:</strong> Ultimate Coming Soon Page plugin is being deprecated and will be removed soon from wordpress.org. Please use our new version located at: <a href="plugin-install.php?tab=search&s=Coming+Soon+Page+%26+Maintenance+Mode+by+SeedProd">Coming Soon Page & Maintenance Mode by SeedProd. </a></div>';
-	echo '</td></tr>';
-}
+$maintenance = new maintenance();
+?>
